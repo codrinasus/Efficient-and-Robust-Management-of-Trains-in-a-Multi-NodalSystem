@@ -44,6 +44,7 @@ end
 x  = binvar(stations_number,stations_number,length(T),K,'full');%space time arc for train presence
 bi = intvar(stations_number,length(T),'full');%Boarding passengers at given station
 
+%Waiting time constraints (28) && (29) && (31)
 Constraints = [];
 for i = 1 : stations_number
     for t = 1 : length(T)
@@ -85,7 +86,7 @@ for i = 1 : stations_number/2-1
 end
 T_c(stations_number/2:end) = T_c(stations_number/2-1:-1:1);
 
-%Dwelling time bounds constraints
+%Dwelling time bounds constraints (24) && (25)
 for i = 2 : stations_number-1
     for k = 1 : K
         for t = 1 : length(T)-di_max/delta-1
@@ -96,7 +97,7 @@ for i = 2 : stations_number-1
 end
 
 h = ceil((T_c+acc_time+brk_time)/delta);%headway time on a link
-%Time distance between adjacent trains
+%Time distance between adjacent trains  (22) && (23) 
 for i = 1 : stations_number - 1
     if(i == 15)
                 continue
@@ -116,14 +117,14 @@ end
 TR = 6;%Time to prepare for next cycle 6*delta
 TA = 3;%Time needed at turnaround station 3*delta
 
-%Cycle constraint
+%Cycle constraint (21)
 for k = 1 : K
     for t = 1 : length(T) - TA
         Constraints = [Constraints, x(15,15,(t+1:t+TA),k) <= x(15,15,t,k)];
     end
 end 
 
-%Turnaround constraint
+%Turnaround constraint (20)
 for k = 1 : K
     for t = 1 : length(T) - TR
         Constraints = [Constraints, x(15,15,(t+1:t+TR),k) <= x(30,30,t,k)];
@@ -146,8 +147,15 @@ for i = 1 : stations_number - 1
     end
 end
 
-%Passenger capacity constraint
-for i = 1 : stations_number
+% %Present only in one place at given time
+% for t = 1 : length(T)
+%     for k = 1 : K
+%         Constraints = [Constraints, sum(x(:,:,t,k),'all') == 1];
+%     end
+% end
+
+%Passenger capacity constraint (30)
+for i = 1 : stations_number 
     for t = 1 : length(T)
         insum = 0;
         for k = 1 : K
@@ -157,7 +165,7 @@ for i = 1 : stations_number
     end
 end
 
-E = 0;%Energy cost
+E = 0;%Energy cost (17)
 
 for i = 1 : stations_number -1
     if i == 15
@@ -176,12 +184,13 @@ end
 omega_t = 0.5;%Waiting time weight
 omega_e = 1 - omega_t;%Energy cost weight
 
-Z = omega_t * WT + omega_e * E;%objective function
+Z = omega_t * WT + omega_e * E;%objective function (18)
 
 %Solving the problem
 ops = sdpsettings('verbose',2,'debug',1);
 optimize(Constraints,Z,ops);
-% 
+
+% Plotting
 figure()
 stairs(sum(value(bi)))
 title('Passengers boarding on Subway Line')
