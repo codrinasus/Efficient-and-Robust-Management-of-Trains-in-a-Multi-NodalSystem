@@ -1,5 +1,7 @@
+clear all
+close all
+clc
 %% Waiting Time
-
 % Define time intervals and stations and boarding capacity
 delta           = 30;%Sampling time[s]
 start_interval  = 7;%Hour at which we want to start the observations
@@ -35,7 +37,7 @@ di = zeros(stations_number, length(T));
 for t=1:length(T)
     for i = 1 : stations_number
         for j = 1 : stations_number
-            di(i,t) = di(i,t) + p_ij(j,i,t) * delta;
+            di(i,t) = di(i,t) + 10*p_ij(j,i,t) * delta;
         end
     end
 end
@@ -81,17 +83,18 @@ di_max            = 90;%Maximum dwelling time
 T_a               = acc_time;%acceleration timestamp
 T_b               = brk_time;%breaking timestamp
 T_c               = zeros(stations_number-2,1);%cruising timestamp
+epsilon           = sdpvar(1);
 for i = 1 : stations_number/2-1
     T_c(i) = (station_distances(i)/v_cruise)*3600;
 end
 T_c(stations_number/2:end) = T_c(stations_number/2-1:-1:1);
 
 %Dwelling time bounds constraints (24) && (25)
-for i = 2 : stations_number-1
+for i = 1 : stations_number-1
     for k = 1 : K
         for t = 1 : length(T)-di_max/delta-1
-              Constraints = [Constraints, x(i-1,i,t,k) >= x(i,i+1,(t+1):(t+di_min/delta),k)];
-              Constraints = [Constraints, x(i-1,i,t,k) <= x(i,i+1,t+1+di_max/delta,k)];
+              Constraints = [Constraints, x(i,i+1,t:(t+di_min/delta),k) <= x(i,i,t,k)];
+              Constraints = [Constraints, x(i,i,t,k) <= x(i,i+1,t+di_max/delta,k)];
         end
     end
 end
@@ -105,9 +108,9 @@ for i = 1 : stations_number - 1
     for k = 2 : K
         for t = 1 : length(T) - max(h)
             if(i < 15)
-                Constraints = [Constraints, x(i,i+1,(t+1):(t+h(i)),k-1)<= x(i,i+1,t,k)];
+                Constraints = [Constraints, x(i,i+1,t:(t+h(i)),k-1) <= x(i,i+1,t,k)];
             else
-                Constraints = [Constraints, x(i,i+1,(t+1):(t+h(i-1)),k-1)<= x(i,i+1,t,k)];
+                Constraints = [Constraints, x(i,i+1,t:(t+h(i-1)),k-1) <= x(i,i+1,t,k)];
             end
         end
     end
@@ -127,7 +130,7 @@ end
 %Turnaround constraint (20)
 for k = 1 : K
     for t = 1 : length(T) - TR
-        Constraints = [Constraints, x(15,15,(t+1:t+TR),k) <= x(30,30,t,k)];
+        Constraints = [Constraints, x(1,1,(t:t+TR),k) <= x(30,30,t,k)];
     end
 end
 
@@ -140,19 +143,21 @@ end
 
 %Concurency link
 for i = 1 : stations_number - 1
-    for j = i + 1 : stations_number
-        for t = 1 : length(T)
-            Constraints = [Constraints, sum(x(i,j,t,:)) == 1];
-        end
+    for t = 1 : length(T)
+        Constraints = [Constraints, sum(x(i,i+1,t,:)) == 1];
     end
 end
 
-% %Present only in one place at given time
-% for t = 1 : length(T)
-%     for k = 1 : K
-%         Constraints = [Constraints, sum(x(:,:,t,k),'all') == 1];
-%     end
-% end
+% % %Present only in one place at given time
+for t = 1 : length(T)
+    for k = 1 : K
+        insum = 0;
+        for i = 1 : stations_number - 1
+            insum = insum + x(i,i,t,k) + x(i,i+1,t,k);
+        end
+        Constraints = [Constraints, insum <= epsilon];
+    end
+end
 
 %Passenger capacity constraint (30)
 for i = 1 : stations_number 
@@ -171,12 +176,10 @@ for i = 1 : stations_number -1
     if i == 15
         continue
     end
-    for j = i : stations_number
-        for t = 1 : length(T)
-            for k = 1 : k
-                E = E + M * (acc + 1/M * (theta_a * v_cruise)^2 + theta_b *v_cruise + theta_c) * ...
-                    v_cruise * delta * x(i,j,t,k);
-            end
+    for t = 1 : length(T)
+        for k = 1 : k
+            E = E + M * (acc + 1/M * (theta_a * v_cruise)^2 + theta_b *v_cruise + theta_c) * ...
+                v_cruise * delta * x(i,i+1,t,k);
         end
     end
 end
@@ -184,7 +187,7 @@ end
 omega_t = 0.5;%Waiting time weight
 omega_e = 1 - omega_t;%Energy cost weight
 
-Z = omega_t * WT + omega_e * E;%objective function (18)
+Z = omega_t * WT + omega_e * E + epsilon*1e3;%objective function (18)
 
 %Solving the problem
 ops = sdpsettings('verbose',2,'debug',1);
@@ -197,9 +200,11 @@ title('Passengers boarding on Subway Line')
 xlabel('Time interval [minutes]')
 ylabel('Number of passengers')
 
-figure()
-hold on
-for i = 1 : stations_number - 1
-    plot(2*i + squeeze(value(x(i,i+1,:,6))))
+for k = 1 : K
+    figure()
+    hold on
+    for i = 1 : stations_number - 1
+        plot(i * squeeze(value(x(i,i,:,k))))
+    end
+    hold off
 end
-hold off
