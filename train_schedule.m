@@ -39,11 +39,11 @@ function [Z, WT, E, x_wait, TD, TE, bi,T, di, Description] = train_schedule(delt
     
     di = di.*30;
     %% Travelling time between stations
-    for i = 1 : (I-4)/2
+    for i = 1 : (I-3)
         T_c(i) = (station_distances(i)/v_cruise)*3600;
     end
-    T_c((I-4)/2+1:end) = T_c((I-4)/2:-1:1);
-    % h = ceil((T_c+acc_time+brk_time)/delta);%headway time on a link
+    %T_c((I-4)/2+1:end) = T_c((I-4)/2:-1:1);
+    h = ceil((T_c+acc_time+brk_time)/delta);%headway time on a link
     % h = [h(1:(I-4)/2); TA; h((I-4)/2+1:end)];
     
     
