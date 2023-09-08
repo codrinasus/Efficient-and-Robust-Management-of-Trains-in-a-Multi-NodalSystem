@@ -180,6 +180,6 @@ function [Z, WT, E, x_wait, TD, TE, bi,T, di, Description] = train_schedule(delt
     %% Solving the problem
     Z = omega_t * WT + omega_e * E;%objective function (18)
     
-    ops = sdpsettings('verbose',2,'debug',1);
+    ops = sdpsettings('solver', 'gurobi', 'verbose', 2, 'debug', 1);
     Description = optimize(Constraints,Z,ops);
 end
